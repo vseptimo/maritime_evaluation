@@ -1,0 +1,131 @@
+import requests
+import base64
+import sys
+from PIL import Image
+
+OLLAMA_ENDPOINT = "http://localhost:11434/api/generate"
+
+def encode_image(image_path):
+    with open(image_path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode("utf-8")
+
+def query_llava(image_paths):
+    """Analyze one or multiple images with LLaVA"""
+    if isinstance(image_paths, str):
+        image_paths = [image_paths]
+    
+    image_data_list = [encode_image(path) for path in image_paths]
+
+    prompt = """Analyze these maritime engineering assessment documents carefully. Extract and describe:
+1. Assessment type and course details
+2. Performance outcomes and criteria listed
+3. Scoring system and marks allocation
+4. Any completed scores or marks visible
+5. Assessment requirements and procedures
+6. Failure conditions mentioned
+7. Overall structure and grading system
+
+If multiple images are provided, compare and contrast them, noting any differences in assessment criteria, scoring, or requirements.
+Focus on the specific technical criteria being evaluated for the turbo generator operation or maritime simulation."""
+
+    payload = {
+        "model": "llava:latest",
+        "prompt": prompt,
+        "images": image_data_list,
+        "stream": False
+    }
+
+    print(f"🔍 Analyzing {len(image_paths)} assessment document(s) with LLaVA...")
+    response = requests.post(OLLAMA_ENDPOINT, json=payload)
+    print("✅ LLaVA Status:", response.status_code)
+    return response.json().get("response", "LLaVA returned no response.")
+
+def query_gemma_evaluation(assessment_analysis_from_llava):
+    """Evaluate the assessment using Gemma based on LLaVA's analysis."""
+
+    prompt = f"""You are a maritime engineering education expert evaluating a student assessment document.
+
+Image description:
+"{assessment_analysis_from_llava}"
+
+Based on this maritime simulation assessment, please provide:
+1. ASSESSMENT OVERVIEW:
+   - What type of maritime operation is being assessed?
+   - What are the key technical competencies being evaluated?
+
+2. PERFORMANCE EVALUATION:
+   - Analyze the scoring criteria and their importance
+   - Identify critical safety-related performance indicators
+   - Evaluate the comprehensiveness of the assessment rubric
+
+3. EDUCATIONAL ASSESSMENT:
+   - Rate the assessment design quality (1-10)
+   - Identify strengths and weaknesses in the evaluation criteria
+   - Suggest improvements for better learning outcomes
+
+4. STUDENT GUIDANCE:
+   - What should students focus on to excel in this assessment?
+   - Which criteria are most critical for maritime safety?
+   - Recommended study areas and preparation strategies
+
+5. INDUSTRY RELEVANCE:
+   - How well does this assessment reflect real-world maritime operations?
+   - Alignment with maritime industry standards and practices
+
+Provide detailed, professional analysis suitable for maritime education improvement."""
+
+    payload = {
+        "model": "gemma3:4b",  # Updated model name
+        "prompt": prompt,
+        "stream": False
+    }
+
+    print("📘 Sending to Gemma...")
+    response = requests.post(OLLAMA_ENDPOINT, json=payload)
+    print("✅ Gemma Status:", response.status_code)
+
+    if response.status_code == 200:
+        return response.json().get("response", "Gemma returned no response.")
+    else:
+        print(f"❌ Error: {response.status_code} - {response.text}")
+        return f"Error communicating with Gemma: {response.status_code}"
+
+def show_images(image_paths):
+    """Display all images using PIL."""
+    for path in image_paths:
+        try:
+            img = Image.open(path)
+            img.show(title=path)
+        except Exception as e:
+            print(f"⚠️ Could not open image {path}: {e}")
+
+if __name__ == "__main__":
+    # Use two specific image files (student1 and student2)
+    image_paths = ["student1.jpg", "student2.jpg"]
+
+    # Check if image files exist
+    for image_path in image_paths:
+        try:
+            with open(image_path, 'rb'):
+                pass
+        except FileNotFoundError:
+            print(f"❌ Error: Image file '{image_path}' not found.")
+            sys.exit(1)
+
+    print(f"📸 Processing {len(image_paths)} image(s): {', '.join(image_paths)}")
+    show_images(image_paths)  # Display images
+
+    # Step 1: LLaVA analyzes the image(s)
+    llava_description = query_llava(image_paths)
+    print("\n📝 LLaVA's Description:\n", llava_description)
+
+    # Step 2: Gemma evaluates the assessment
+    gemma_evaluation = query_gemma_evaluation(llava_description)
+    print("\n🎯 Gemma's Evaluation:\n", gemma_evaluation)
+
+Open the project in Visual Studio Code.
+
+Open the terminal and run the following commands:
+
+•   pip install requests
+•   python image_evaluator.py
